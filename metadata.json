@@ -1,0 +1,8 @@
+{
+  "name": "Ebru: Suyun İzi",
+  "description": "Interactive Turkish Ebru water marbling studio and guided pattern game powered by WebGL2 fluid physics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

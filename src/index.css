@@ -1,0 +1,170 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-display: "Fraunces", Georgia, serif;
+    --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+    --atelier-bg: #f5f1e8;
+    --atelier-water: #d7dfdc;
+    --atelier-surface: rgba(250, 247, 240, 0.9);
+    --atelier-ink: #162238;
+    --atelier-muted: #525e70;
+    --atelier-line: rgba(22, 34, 56, 0.14);
+    --atelier-accent: #9e2a2b;
+    --atelier-gold: #b8862d;
+  }
+
+  :root.dark {
+    --atelier-bg: #12161d;
+    --atelier-water: #1b232e;
+    --atelier-surface: rgba(22, 28, 36, 0.88);
+    --atelier-ink: #ede8de;
+    --atelier-muted: #a2aab6;
+    --atelier-line: rgba(237, 232, 222, 0.16);
+    --atelier-accent: #c84b47;
+    --atelier-gold: #d4a24c;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--atelier-bg);
+    color: var(--atelier-ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:root {
+  --memory-glow-soft: rgba(184, 134, 45, 0.28);
+  --memory-glow-bright: rgba(184, 134, 45, 0.56);
+}
+
+:root.dark {
+  --memory-glow-soft: rgba(212, 162, 76, 0.25);
+  --memory-glow-bright: rgba(212, 162, 76, 0.58);
+}
+
+@keyframes memory-water-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px var(--memory-glow-soft));
+  }
+  50% {
+    filter: drop-shadow(0 0 11px var(--memory-glow-bright));
+  }
+}
+
+@keyframes memory-ripple-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.025);
+  }
+}
+
+.memory-silhouette-glow {
+  animation: memory-water-glow 4.8s ease-in-out infinite;
+}
+
+.memory-ripple-sync {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: memory-ripple-pulse 4.8s ease-in-out infinite;
+}
+
+@keyframes caustic-drift-a {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translate3d(-1.5%, -1%, 0) scale(1.02) rotate(0deg);
+  }
+  50% {
+    opacity: 0.52;
+    transform: translate3d(1.5%, 1.2%, 0) scale(1.06) rotate(2deg);
+  }
+}
+
+@keyframes caustic-drift-b {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: translate3d(1.2%, -1.4%, 0) scale(1.05) rotate(0deg);
+  }
+  50% {
+    opacity: 0.44;
+    transform: translate3d(-1.2%, 1.4%, 0) scale(1.01) rotate(-2deg);
+  }
+}
+
+.water-caustics-a,
+.water-caustics-b {
+  position: absolute;
+  inset: -8%;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  will-change: transform, opacity;
+}
+
+.dark .water-caustics-a,
+.dark .water-caustics-b {
+  mix-blend-mode: screen;
+}
+
+.water-caustics-a {
+  background-image:
+    radial-gradient(ellipse 34% 24% at 24% 32%, rgba(255, 250, 232, 0.36), transparent 68%),
+    radial-gradient(ellipse 28% 36% at 74% 64%, rgba(255, 250, 232, 0.3), transparent 70%),
+    conic-gradient(from 40deg at 48% 46%, transparent 0deg, rgba(255, 255, 255, 0.14) 38deg, transparent 86deg, rgba(255, 248, 224, 0.12) 170deg, transparent 230deg);
+  filter: blur(24px);
+  animation: caustic-drift-a 11s ease-in-out infinite;
+}
+
+.water-caustics-b {
+  background-image:
+    radial-gradient(ellipse 30% 22% at 64% 28%, rgba(236, 246, 244, 0.3), transparent 68%),
+    radial-gradient(ellipse 36% 26% at 32% 72%, rgba(255, 246, 220, 0.26), transparent 72%);
+  filter: blur(30px);
+  animation: caustic-drift-b 15s ease-in-out infinite;
+}
+
+.dark .water-caustics-a {
+  background-image:
+    radial-gradient(ellipse 34% 24% at 24% 32%, rgba(212, 226, 240, 0.1), transparent 68%),
+    radial-gradient(ellipse 28% 36% at 74% 64%, rgba(212, 184, 128, 0.08), transparent 70%),
+    conic-gradient(from 40deg at 48% 46%, transparent 0deg, rgba(220, 234, 248, 0.05) 38deg, transparent 86deg, rgba(212, 184, 128, 0.04) 170deg, transparent 230deg);
+}
+
+.dark .water-caustics-b {
+  background-image:
+    radial-gradient(ellipse 30% 22% at 64% 28%, rgba(196, 222, 232, 0.08), transparent 68%),
+    radial-gradient(ellipse 36% 26% at 32% 72%, rgba(212, 184, 128, 0.07), transparent 72%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
