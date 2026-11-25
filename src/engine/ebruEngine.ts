@@ -1,3 +1,4 @@
+import { getPigmentViscosity } from '../data/ebruData';
 import type { DropSize, ToolType } from '../types/ebru';
 
 interface FboTarget {
@@ -37,11 +38,13 @@ export class EbruEngine {
   private progDropDisplace!: ShaderProgram;
   private progRadialVel!: ShaderProgram;
   private progAdvect!: ShaderProgram;
+  private progAdvectDye!: ShaderProgram;
   private progDivergence!: ShaderProgram;
   private progPressure!: ShaderProgram;
   private progGradient!: ShaderProgram;
   private progScale!: ShaderProgram;
   private progCopy!: ShaderProgram;
+  private progWind!: ShaderProgram;
   private progDisplay!: ShaderProgram;
 
   private vel!: DoubleFbo;
@@ -61,6 +64,12 @@ export class EbruEngine {
   private lastTime = 0;
   private elapsedTime = 0;
   private isDestroyed = false;
+
+  private windClock = 4.5;
+  private windCycleDuration = 11.5;
+  private windGustDuration = 3.8;
+  private windAngle = 0.42;
+  private windIntensity = 1.0;
 
   constructor(canvas: HTMLCanvasElement, initialWaterHex: string) {
     this.canvas = canvas;
@@ -153,24 +162,27 @@ export class EbruEngine {
        }`
     );
 
-    // Authentic Ebru area-preserving radial displacement drop shader
+    // Authentic Ebru area-preserving radial displacement drop shader with per-pigment viscosity
     this.progDropDisplace = this.createProgram(
-      `uniform sampler2D s;uniform vec2 p;uniform vec3 c;uniform float r,ar;
+      `uniform sampler2D s;uniform vec2 p;uniform vec3 c;uniform float r,ar,uViscosity;
        void main(){
          vec2 d=uv-p;
          vec2 da=vec2(d.x*ar,d.y);
          float dist=length(da);
-         if(dist<r){
-           float edge=1.0-smoothstep(r*0.91,r,dist);
-           vec3 prev=texture(s,uv).rgb;
-           o=vec4(mix(prev,c,edge),1.0);
+         // Fluid pigments (low viscosity) expand slightly wider than dense mineral pigments
+         float effR=r*(1.15-0.30*uViscosity);
+         if(dist<effR){
+           float rimStart=effR*mix(0.82,0.95,uViscosity);
+           float edge=1.0-smoothstep(rimStart,effR,dist);
+           vec4 prev=texture(s,uv);
+           o=vec4(mix(prev.rgb,c,edge),mix(prev.a,uViscosity,edge));
          } else {
-           float pushR=r*0.95;
+           float pushR=effR*0.95;
            float srcDist=sqrt(max(0.0,dist*dist-pushR*pushR));
            vec2 srcDa=da*(srcDist/max(dist,1e-5));
            vec2 srcUv=p+vec2(srcDa.x/ar,srcDa.y);
-           vec3 pushed=texture(s,clamp(srcUv,vec2(0.001),vec2(0.999))).rgb;
-           o=vec4(pushed,1.0);
+           vec4 pushed=texture(s,clamp(srcUv,vec2(0.001),vec2(0.999)));
+           o=pushed;
          }
        }`
     );
@@ -190,11 +202,43 @@ export class EbruEngine {
        }`
     );
 
+    // Velocity advection with subtle pigment-viscosity damping
     this.progAdvect = this.createProgram(
-      `uniform sampler2D v,s;uniform float dt,df;
+      `uniform sampler2D v,s,dyeMap;uniform float dt,df;
        void main(){
          vec2 c=uv-dt*texture(v,uv).xy*t;
-         o=texture(s,c)/(1.0+df*dt);
+         float localVis=texture(dyeMap,uv).a;
+         o=texture(s,c)/(1.0+(df+localVis*2.1)*dt);
+       }`
+    );
+
+    // Dye advection with viscosity-weighted shear and dynamic boundary diffusion
+    this.progAdvectDye = this.createProgram(
+      `uniform sampler2D v,s;uniform vec2 vt;uniform float dt;
+       void main(){
+         vec2 vel=texture(v,uv).xy;
+         vec4 raw=texture(s,uv);
+         float vis=raw.a;
+         // Higher viscosity pigments resist fluid drag slightly more, creating organic shear
+         float advScale=mix(1.08,0.74,vis);
+         vec2 c=uv-dt*vel*vt*advScale;
+         vec4 center=texture(s,c);
+         float cVis=center.a;
+         if(cVis>0.01){
+           vec4 L=texture(s,c-vec2(t.x,0));
+           vec4 R=texture(s,c+vec2(t.x,0));
+           vec4 T=texture(s,c+vec2(0,t.y));
+           vec4 B=texture(s,c-vec2(0,t.y));
+           vec4 avg=(L+R+T+B)*0.25;
+           float speed=length(vel);
+           // Fluid pigments feather slightly along active flow & drop impulses while staying crisp when still
+           float activeFlow=smoothstep(0.02,2.5,speed);
+           float mobility=pow(max(0.0,1.0-cVis),1.5);
+           float rate=clamp(activeFlow*0.055*mobility*dt*60.0,0.0,0.075);
+           o=mix(center,avg,rate);
+         } else {
+           o=center;
+         }
        }`
     );
 
@@ -244,6 +288,25 @@ export class EbruEngine {
     this.progCopy = this.createProgram(
       `uniform sampler2D s;
        void main(){o=texture(s,uv);}`
+    );
+
+    // Subtle periodic workshop air currents across floating pigment drops
+    this.progWind = this.createProgram(
+      `uniform sampler2D s,dyeMap;uniform vec2 uWind;uniform float uTime,uGust;
+       void main(){
+         vec2 vel=texture(s,uv).xy;
+         float localVis=texture(dyeMap,uv).a;
+         float hasPigment=smoothstep(0.01,0.14,localVis);
+         if(hasPigment>0.001){
+           float swirl=sin(uv.y*5.2+uTime*0.65)*0.32+cos(uv.x*4.4-uTime*0.48)*0.24;
+           vec2 perp=vec2(-uWind.y,uWind.x);
+           vec2 gustVec=(uWind+perp*swirl)*uGust;
+           float mobility=mix(1.0,0.45,localVis);
+           o=vec4(vel+gustVec*hasPigment*mobility,0.0,1.0);
+         } else {
+           o=vec4(vel,0.0,1.0);
+         }
+       }`
     );
 
     this.progDisplay = this.createProgram(
@@ -421,6 +484,10 @@ export class EbruEngine {
     this.waterRgb = this.hexToRgb(hex);
   }
 
+  public setWindIntensity(scale: number) {
+    this.windIntensity = Math.max(0, Math.min(2, scale));
+  }
+
   public clearTray(resetUndo = true) {
     const gl = this.gl;
     for (const fbo of [this.vel.a, this.vel.b, this.pres.a, this.pres.b, this.divT]) {
@@ -430,7 +497,8 @@ export class EbruEngine {
     }
     for (const fbo of [this.dye.a, this.dye.b]) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.f);
-      gl.clearColor(this.waterRgb[0], this.waterRgb[1], this.waterRgb[2], 1);
+      // Alpha = 0.0 represents clean water bath (zero pigment viscosity)
+      gl.clearColor(this.waterRgb[0], this.waterRgb[1], this.waterRgb[2], 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     if (resetUndo) {
@@ -525,17 +593,19 @@ export class EbruEngine {
 
   private dropAt(x: number, y: number, hex: string, radius: number, withVelImpulse: boolean) {
     const rgb = this.hexToRgb(hex);
+    const viscosity = getPigmentViscosity(hex);
     this.run(
       this.progDropDisplace,
-      { s: this.dye.a, p: [x, y], c: rgb, r: radius, ar: this.ar },
+      { s: this.dye.a, p: [x, y], c: rgb, r: radius, ar: this.ar, uViscosity: viscosity },
       this.dye.b
     );
     this.dye.swap();
 
     if (withVelImpulse) {
+      const waveStrength = 1.45 * (1.2 - 0.4 * viscosity);
       this.run(
         this.progRadialVel,
-        { s: this.vel.a, p: [x, y], r: radius, ar: this.ar, strength: 1.4 },
+        { s: this.vel.a, p: [x, y], r: radius, ar: this.ar, strength: waveStrength },
         this.vel.b
       );
       this.vel.swap();
@@ -607,10 +677,41 @@ export class EbruEngine {
     this.elapsedTime += clampedDt;
     this.run(
       this.progAdvect,
-      { v: this.vel.a, s: this.vel.a, t: this.vt, dt: clampedDt, df: 2.6 },
+      { v: this.vel.a, s: this.vel.a, dyeMap: this.dye.a, t: this.vt, dt: clampedDt, df: 2.3 },
       this.vel.b
     );
     this.vel.swap();
+
+    // Periodic workshop breeze gently shifting active floating pigment drops
+    this.windClock += clampedDt;
+    if (this.windClock >= this.windCycleDuration) {
+      this.windClock -= this.windCycleDuration;
+      this.windAngle += 0.68 + (Math.random() - 0.5) * 0.95;
+      this.windCycleDuration = 10.2 + Math.random() * 4.2;
+      this.windGustDuration = 3.2 + Math.random() * 1.1;
+    }
+    const calmDuration = Math.max(2, this.windCycleDuration - this.windGustDuration);
+    if (this.windIntensity > 0.01 && this.windClock > calmDuration) {
+      const phase = (this.windClock - calmDuration) / this.windGustDuration;
+      const bell = Math.pow(Math.sin(Math.PI * phase), 2);
+      const gust = bell * 1.65 * this.windIntensity * clampedDt;
+      if (gust > 0.0002) {
+        const wx = Math.cos(this.windAngle) / Math.max(0.5, this.ar);
+        const wy = Math.sin(this.windAngle);
+        this.run(
+          this.progWind,
+          {
+            s: this.vel.a,
+            dyeMap: this.dye.a,
+            uWind: [wx, wy],
+            uTime: this.elapsedTime,
+            uGust: gust,
+          },
+          this.vel.b
+        );
+        this.vel.swap();
+      }
+    }
 
     this.run(this.progDivergence, { v: this.vel.a, t: this.vt }, this.divT);
     this.run(this.progScale, { s: this.pres.a, k: 0.8 }, this.pres.b);
@@ -625,8 +726,8 @@ export class EbruEngine {
     this.vel.swap();
 
     this.run(
-      this.progAdvect,
-      { v: this.vel.a, s: this.dye.a, t: this.vt, dt: clampedDt, df: 0 },
+      this.progAdvectDye,
+      { v: this.vel.a, s: this.dye.a, t: this.dtTexel, vt: this.vt, dt: clampedDt },
       this.dye.b
     );
     this.dye.swap();

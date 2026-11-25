@@ -185,7 +185,20 @@ export function ToolDock({
         <div role="group" aria-label="Pigments" className="flex items-center gap-1.5">
           {orderedPigments.map((pigment) => {
             const active = activeColor.toLowerCase() === pigment.hex.toLowerCase();
-            const label = lang === 'tr' ? pigment.nameTr : pigment.nameEn;
+            const name = lang === 'tr' ? pigment.nameTr : pigment.nameEn;
+            const flowTag =
+              pigment.viscosity < 0.4
+                ? lang === 'tr'
+                  ? 'Akışkan'
+                  : 'Fluid'
+                : pigment.viscosity > 0.72
+                  ? lang === 'tr'
+                    ? 'Yoğun'
+                    : 'Dense'
+                  : lang === 'tr'
+                    ? 'Dengeli'
+                    : 'Balanced';
+            const label = `${name} · ${flowTag}`;
             const isRecommended = recommendedPaletteIds?.includes(pigment.id);
             return (
               <button

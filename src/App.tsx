@@ -205,12 +205,28 @@ export default function App() {
     engineRef.current?.setWaterColor(waterHex);
   }, [theme, view, activeChapter]);
 
-  // Sync audio season
+  // Sync audio season and workshop air-current breeze intensity
   useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
     if (view === 'story') {
       audioRef.current?.setSeason(activeChapter.season);
+      const seasonWind: Record<typeof activeChapter.season, number> = {
+        winter_late: 0.45,
+        spring: 1.0,
+        summer: 1.2,
+        autumn: 0.95,
+        winter: 0.4,
+        epilogue: 0.9,
+      };
+      engineRef.current?.setWindIntensity(
+        prefersReducedMotion ? 0 : seasonWind[activeChapter.season]
+      );
     } else {
       audioRef.current?.setSeason('spring');
+      engineRef.current?.setWindIntensity(prefersReducedMotion ? 0 : 0.9);
     }
   }, [view, activeChapter]);
 
@@ -292,6 +308,21 @@ export default function App() {
         theme === 'dark' ? initialCh.waterDarkHex : initialCh.waterLightHex;
       const engine = new EbruEngine(canvas, initialWater);
       engineRef.current = engine;
+
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      const initialSeasonWind: Record<typeof initialCh.season, number> = {
+        winter_late: 0.45,
+        spring: 1.0,
+        summer: 1.2,
+        autumn: 0.95,
+        winter: 0.4,
+        epilogue: 0.9,
+      };
+      engine.setWindIntensity(
+        prefersReducedMotion ? 0 : initialSeasonWind[initialCh.season]
+      );
 
       // Setup initial chapter state cleanly (empty tray for Prolog & Epilog, blind stroke for Ch.2)
       if (initialCh.seedBlindStroke) {

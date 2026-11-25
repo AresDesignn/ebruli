@@ -27,6 +27,8 @@ export interface Pigment {
   nameTr: string;
   nameEn: string;
   hex: string;
+  /** 0.25 = fluid ox-gall rich pigment, 0.92 = dense mineral pigment */
+  viscosity: number;
 }
 
 export interface StrokeTelemetry {

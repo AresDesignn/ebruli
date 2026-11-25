@@ -1,15 +1,20 @@
 import type { ChallengeDef, Pigment, StrokeTelemetry } from '../types/ebru';
 
 export const PIGMENTS: Pigment[] = [
-  { id: 'lacivert', nameTr: 'Lacivert', nameEn: 'Ottoman Indigo', hex: '#17306b' },
-  { id: 'kirmizi', nameTr: 'Lale Kırmızısı', nameEn: 'Madder Crimson', hex: '#b3262e' },
-  { id: 'hardal', nameTr: 'Hardal Sarısı', nameEn: 'Ochre Mustard', hex: '#d4a017' },
-  { id: 'yesil', nameTr: 'Çam Yeşili', nameEn: 'Pine Viridian', hex: '#1f7a5c' },
-  { id: 'turkuaz', nameTr: 'Turkuaz', nameEn: 'Iznik Turquoise', hex: '#1fa3b0' },
-  { id: 'murdum', nameTr: 'Mürdüm', nameEn: 'Deep Plum', hex: '#6c2d5c' },
-  { id: 'krem', nameTr: 'Üstübeç', nameEn: 'Warm Cream', hex: '#efe7d6' },
-  { id: 'siyah', nameTr: 'İs Siyahı', nameEn: 'Lamp Black', hex: '#1a1a1e' },
+  { id: 'lacivert', nameTr: 'Lacivert', nameEn: 'Ottoman Indigo', hex: '#17306b', viscosity: 0.86 },
+  { id: 'kirmizi', nameTr: 'Lale Kırmızısı', nameEn: 'Madder Crimson', hex: '#b3262e', viscosity: 0.56 },
+  { id: 'hardal', nameTr: 'Hardal Sarısı', nameEn: 'Ochre Mustard', hex: '#d4a017', viscosity: 0.34 },
+  { id: 'yesil', nameTr: 'Çam Yeşili', nameEn: 'Pine Viridian', hex: '#1f7a5c', viscosity: 0.64 },
+  { id: 'turkuaz', nameTr: 'Turkuaz', nameEn: 'Iznik Turquoise', hex: '#1fa3b0', viscosity: 0.26 },
+  { id: 'murdum', nameTr: 'Mürdüm', nameEn: 'Deep Plum', hex: '#6c2d5c', viscosity: 0.78 },
+  { id: 'krem', nameTr: 'Üstübeç', nameEn: 'Warm Cream', hex: '#efe7d6', viscosity: 0.28 },
+  { id: 'siyah', nameTr: 'İs Siyahı', nameEn: 'Lamp Black', hex: '#1a1a1e', viscosity: 0.92 },
 ];
+
+export function getPigmentViscosity(hex: string): number {
+  const found = PIGMENTS.find((p) => p.hex.toLowerCase() === hex.toLowerCase());
+  return found ? found.viscosity : 0.55;
+}
 
 export const CHALLENGES: ChallengeDef[] = [
   {
